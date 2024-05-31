@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/mrubczewski/lets-go-snippetbox/internal/models"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -9,7 +13,8 @@ import (
 )
 
 type application struct {
-	logger *slog.Logger
+	logger   *slog.Logger
+	snippets *models.SnippetModel
 }
 
 func main() {
@@ -17,23 +22,30 @@ func main() {
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-	app := &application{
-		logger: logger,
+
+	connString := "postgres://snippetboxuser:snippetboxpassword@localhost:5432/snippetbox"
+	config, err := pgxpool.ParseConfig(connString)
+	if err != nil {
+		log.Fatalf("Unable to parse connection string: %v\n", err)
 	}
 
-	mux := http.NewServeMux()
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		log.Fatalf("Unable to create connection pool: %v\n", err)
+	}
+	defer pool.Close()
 
-	fileServer := http.FileServer(neuteredFileSystem{http.Dir("./ui/static/")})
-	mux.Handle("GET /static/", http.StripPrefix("/static", fileServer))
+	app := &application{
+		logger:   logger,
+		snippets: &models.SnippetModel{DB: pool},
+	}
 
-	mux.HandleFunc("GET /{$}", app.home)
-	mux.HandleFunc("GET /snippet/view/{id}", app.snippetView)
-	mux.HandleFunc("GET /snippet/create", app.snippetCreate)
-	mux.HandleFunc("POST /snippet/create", app.snippetCreatePost)
+	if err := pool.Ping(context.Background()); err != nil {
+		log.Fatalf("Unable to connect to database: %v\n", err)
+	}
 
 	app.logger.Info("starting server", "addr", *addr)
-
-	err := http.ListenAndServe(*addr, mux)
+	err = http.ListenAndServe(*addr, app.routes())
 	if err != nil {
 		app.logger.Error(err.Error())
 		os.Exit(1)
