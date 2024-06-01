@@ -2,14 +2,22 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"github.com/mrubczewski/lets-go-snippetbox/internal/models"
 	"net/http"
 	"strconv"
+	"strings"
+	"unicode/utf8"
 )
 
-func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	w.Header().Add("Server", "Go")
+type snippetCreateForm struct {
+	Title       string
+	Content     string
+	ExpiresAt   int
+	FieldErrors map[string]string
+}
 
+func (app *application) home(w http.ResponseWriter, r *http.Request) {
 	snippets, err := app.snippets.Latest()
 	if err != nil {
 		app.serverError(w, r, err)
@@ -44,16 +52,53 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {
-	_, err := w.Write([]byte("Display a form for creating a new snippet..."))
-	if err != nil {
-		app.serverError(w, r, err)
+	templateData := app.newTemplateData(r)
+
+	templateData.Form = snippetCreateForm{
+		ExpiresAt: 365,
 	}
+	app.render(w, r, http.StatusOK, "create.tmpl.html", templateData)
 }
 
 func (app *application) snippetCreatePost(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusCreated)
-	_, err := w.Write([]byte("Save a new snippet..."))
+	err := r.ParseForm()
 	if err != nil {
 		app.serverError(w, r, err)
 	}
+	expiresAfterDays := r.PostForm.Get("expires")
+	expiresAfterDaysInt, err := strconv.Atoi(expiresAfterDays)
+	if err != nil {
+		app.clientError(w, http.StatusBadRequest)
+	}
+
+	form := snippetCreateForm{
+		Title:       r.PostForm.Get("title"),
+		Content:     r.PostForm.Get("content"),
+		ExpiresAt:   expiresAfterDaysInt,
+		FieldErrors: map[string]string{},
+	}
+
+	if strings.TrimSpace(form.Title) == "" {
+		form.FieldErrors["title"] = "This field cannot be blank"
+	} else if utf8.RuneCountInString(form.Title) > 100 {
+		form.FieldErrors["title"] = "This field cannot be more than 100 characters long"
+	}
+
+	if expiresAfterDaysInt != 1 && expiresAfterDaysInt != 7 && expiresAfterDaysInt != 365 {
+		form.FieldErrors["expires"] = "This field must equal 1, 7 or 365"
+	}
+
+	if len(form.FieldErrors) > 0 {
+		data := app.newTemplateData(r)
+		data.Form = form
+		app.render(w, r, http.StatusOK, "create.tmpl.html", data)
+		return
+	}
+
+	id, err := app.snippets.Insert(form.Title, form.Content, expiresAfterDaysInt)
+	if err != nil {
+		app.serverError(w, r, err)
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/snippet/view/%d", id), http.StatusSeeOther)
 }

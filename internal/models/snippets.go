@@ -23,11 +23,12 @@ type SnippetModel struct {
 	DB *pgxpool.Pool
 }
 
-func (m *SnippetModel) Insert(title string, content string, expiresAt time.Time) (int, error) {
+func (m *SnippetModel) Insert(title string, content string, expireAfterDays int) (int, error) {
 	var id int
 
-	statement := "INSERT INTO snippets (title, content, \"createdAt\", \"expiresAt\") VALUES ($1, $2, now(), $3)"
-	err := m.DB.QueryRow(context.Background(), statement, title, content, expiresAt).Scan(&id)
+	statement := "INSERT INTO snippets (title, content, \"createdAt\", \"expiresAt\") VALUES ($1, $2, $3, $4) RETURNING id"
+	currentDateTime := time.Now()
+	err := m.DB.QueryRow(context.Background(), statement, title, content, currentDateTime, currentDateTime.AddDate(0, 0, expireAfterDays)).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("insert failed: %w", err)
 	}

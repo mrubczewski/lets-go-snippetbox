@@ -2,7 +2,10 @@ module github.com/mrubczewski/lets-go-snippetbox
 
 go 1.22.3
 
-require github.com/jackc/pgx/v5 v5.6.0
+require (
+	github.com/jackc/pgx/v5 v5.6.0
+	github.com/justinas/alice v1.2.0
+)
 
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
