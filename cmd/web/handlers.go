@@ -35,11 +35,18 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-
-	_, err = fmt.Fprintf(w, "Display a specific snippet with ID %d...", id)
+	latest, err := app.snippets.Latest()
 	if err != nil {
 		app.serverError(w, r, err)
 	}
+
+	for _, snippet := range latest {
+		fmt.Fprintf(w, "<p>%+v</p>", snippet)
+	}
+	//_, err = fmt.Fprintf(w, "Display a specific snippet with ID %d...", id)
+	//if err != nil {
+	//	app.serverError(w, r, err)
+	//}
 }
 
 func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {

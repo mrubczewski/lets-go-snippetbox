@@ -51,7 +51,7 @@ func (m *SnippetModel) Get(id int) (Snippet, error) {
 }
 
 func (m *SnippetModel) Latest() ([]Snippet, error) {
-	statement := "SELECT id, title, content, \"createdAt\", \"expiresAt\" FROM snippets WHERE expires > NOW() ORDER BY \"createdAt\" DESC LIMIT 10"
+	statement := "SELECT id, title, content, \"createdAt\", \"expiresAt\" FROM snippets WHERE \"expiresAt\" > NOW() ORDER BY \"createdAt\" DESC LIMIT 10"
 	rows, err := m.DB.Query(context.Background(), statement)
 	if err != nil {
 		return nil, err
