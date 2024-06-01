@@ -1,32 +1,24 @@
 package main
 
 import (
-	"fmt"
-	"html/template"
+	"errors"
+	"github.com/mrubczewski/lets-go-snippetbox/internal/models"
 	"net/http"
 	"strconv"
-	"time"
 )
 
 func (app *application) home(w http.ResponseWriter, r *http.Request) {
-	files := []string{
-		"./ui/html/base.tmpl.html",
-		"./ui/html/partials/nav.tmpl.html",
-		"./ui/html/pages/home.tmpl.html",
-	}
-
-	ts, err := template.ParseFiles(files...)
-	if err != nil {
-		app.serverError(w, r, err)
-	}
-
-	app.snippets.Insert("My new snippet", "My new content", time.Now())
-
 	w.Header().Add("Server", "Go")
-	err = ts.ExecuteTemplate(w, "base", nil)
+
+	snippets, err := app.snippets.Latest()
 	if err != nil {
 		app.serverError(w, r, err)
+		return
 	}
+
+	templateData := app.newTemplateData(r)
+	templateData.Snippets = snippets
+	app.render(w, r, http.StatusOK, "home.tmpl.html", templateData)
 }
 
 func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
@@ -35,18 +27,20 @@ func (app *application) snippetView(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	latest, err := app.snippets.Latest()
+
+	snippet, err := app.snippets.Get(id)
 	if err != nil {
-		app.serverError(w, r, err)
+		if errors.Is(err, models.ErrNoRecord) {
+			http.NotFound(w, r)
+		} else {
+			app.serverError(w, r, err)
+		}
+		return
 	}
 
-	for _, snippet := range latest {
-		fmt.Fprintf(w, "<p>%+v</p>", snippet)
-	}
-	//_, err = fmt.Fprintf(w, "Display a specific snippet with ID %d...", id)
-	//if err != nil {
-	//	app.serverError(w, r, err)
-	//}
+	templateData := app.newTemplateData(r)
+	templateData.Snippet = snippet
+	app.render(w, r, http.StatusOK, "view.tmpl.html", templateData)
 }
 
 func (app *application) snippetCreate(w http.ResponseWriter, r *http.Request) {

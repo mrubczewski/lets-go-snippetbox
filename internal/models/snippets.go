@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"log"
+	"strings"
 	"time"
 )
 
@@ -34,10 +36,13 @@ func (m *SnippetModel) Insert(title string, content string, expiresAt time.Time)
 }
 
 func (m *SnippetModel) Get(id int) (Snippet, error) {
-	statement := "SELECT id, title, content, \"createdAt\", \"expiresAt\" FROM snippets WHERE expires > NOW() AND id = ?"
+	statement := "SELECT id, title, content, \"createdAt\", \"expiresAt\" FROM snippets WHERE \"expiresAt\" > NOW() AND id = $1"
 	row := m.DB.QueryRow(context.Background(), statement, id)
 	var s Snippet
 	err := row.Scan(&s.ID, &s.Title, &s.Content, &s.CreatedAt, &s.ExpiresAt)
+
+	newContent := strings.Replace(s.Content, "\n", "<br>", -1)
+	log.Printf(newContent)
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
