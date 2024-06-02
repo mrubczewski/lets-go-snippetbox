@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/mrubczewski/lets-go-snippetbox/internal/models"
 	"github.com/mrubczewski/lets-go-snippetbox/internal/validator"
-	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"strconv"
 )
@@ -126,12 +125,20 @@ func (app *application) userSignupPost(w http.ResponseWriter, r *http.Request) {
 		app.render(w, r, http.StatusUnprocessableEntity, "signup.tmpl", data)
 		return
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(form.Password), 12)
 
-	// Check if email is not already taken!
-	err = app.users.Insert(form.Name, form.Email, string(hash))
+	isTaken, err := app.users.EmailTaken(form.Email)
 	if err != nil {
 		app.serverError(w, r, err)
+		return
+	}
+	if isTaken {
+		form.AddNonFieldError("Email address is already taken!")
+	}
+
+	err = app.users.Insert(form.Name, form.Email, form.Password)
+	if err != nil {
+		app.serverError(w, r, err)
+		return
 	}
 
 	http.Redirect(w, r, "/", http.StatusSeeOther)
